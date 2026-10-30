@@ -53,10 +53,11 @@ echo "      way back if anything goes wrong."
 echo
 
 echo "Compiling..."
-arduino-cli compile --fqbn "$FQBN" .
+SK="$(bash tools/sketch_dir.sh)"   # the folder must be named TamaNaruto
+arduino-cli compile --fqbn "$FQBN" "$SK"
 
 echo "Uploading..."
-arduino-cli upload -p "$PORT" --fqbn "$FQBN" .
+arduino-cli upload -p "$PORT" --fqbn "$FQBN" "$SK"
 
 echo
 echo "Done. Firmware v$(grep -o '"[0-9.]*"' TamaNaruto.ino | head -1 | tr -d '"') on $PORT"

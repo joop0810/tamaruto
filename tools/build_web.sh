@@ -6,9 +6,11 @@ cd "$(dirname "$0")/.."
 FQBN="esp32:esp32:esp32s3:CDCOnBoot=cdc,FlashSize=16M,PSRAM=opi,PartitionScheme=app3M_fat9M_16MB"
 
 echo "Compilando..."
-arduino-cli compile --fqbn "$FQBN" --export-binaries .
+# The sketch folder must be named TamaNaruto; see tools/sketch_dir.sh.
+SK="$(bash tools/sketch_dir.sh)"
+arduino-cli compile --fqbn "$FQBN" --export-binaries "$SK"
 
-B=build/esp32.esp32.esp32s3
+B="$SK/build/esp32.esp32.esp32s3"
 mkdir -p web/firmware   # not tracked: CI and start.bat fill it
 echo "Fusionando binarios..."
 # esptool is not on PATH; the Arduino core ships one and that is the version

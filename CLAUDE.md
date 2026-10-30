@@ -230,6 +230,12 @@ arduino-cli upload -p /dev/cu.usbmodemXXXX --fqbn "$FQBN" .
 bash tools/build_web.sh   # recompiles, writes the 4 parts, bumps the manifest, repacks every region
 ```
 
+**The sketch folder must be named `TamaNaruto`.** arduino-cli refuses a sketch whose
+folder does not match the `.ino`, and a clone of `joop0810/tamaruto` lands in
+`tamaruto/`. `tools/sketch_dir.sh` copies the sources into `build/sketch/TamaNaruto/`
+in that case; `build_web.sh`, `flash.sh` and `tests/run.sh` all compile through it.
+The first CI run failed on exactly this.
+
 **PSRAM (OPI) is mandatory** — the 466×466×16-bit framebuffer is ~434 KB and lives there.
 Wrong partition scheme (no FAT) or PSRAM off = it builds and then fails on hardware.
 

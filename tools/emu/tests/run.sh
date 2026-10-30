@@ -83,7 +83,9 @@ bounded 30 --require 'PASS bounded gates:' -- node "$HERE/bounded.mjs" --self-te
 # it is declared. That shipped once. The mandatory firmware build decides.
 fw_pid=""
 FQBN="esp32:esp32:esp32s3:CDCOnBoot=cdc,FlashSize=16M,PSRAM=opi,PartitionScheme=app3M_fat9M_16MB"
-bounded 600 -- arduino-cli compile --fqbn "$FQBN" "$ROOT" >"$OUT_FW" 2>&1 &
+# The sketch folder must be named TamaNaruto; see tools/sketch_dir.sh.
+SKETCH="$(bash "$ROOT/tools/sketch_dir.sh")"
+bounded 600 -- arduino-cli compile --fqbn "$FQBN" "$SKETCH" >"$OUT_FW" 2>&1 &
 fw_pid=$!
 
 # The browser halves of the save backup and the pack upload. They are JavaScript,
