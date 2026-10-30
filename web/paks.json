@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "regions": {
+    "konoha": {
+      "index": 0,
+      "bytes": 4104537,
+      "crc32": "59f132f4",
+      "sprites": 33
+    },
+    "suna": {
+      "index": 1,
+      "bytes": 1047555,
+      "crc32": "75ad1186",
+      "sprites": 9
+    },
+    "kiri": {
+      "index": 2,
+      "bytes": 659130,
+      "crc32": "f7ca8db0",
+      "sprites": 7
+    },
+    "oto": {
+      "index": 3,
+      "bytes": 3875789,
+      "crc32": "1cebd341",
+      "sprites": 21
+    }
+  }
+}
