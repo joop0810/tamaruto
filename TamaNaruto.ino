@@ -288,6 +288,10 @@ void onRim(int dir);
 uint8_t uiRimPages();
 uint8_t uiRimPage();
 bool uiOnRim(int16_t x, int16_t y);
+bool uiOnRimBand(int16_t x, int16_t y);
+bool uiIsSwipeH(int dx, int dy, uint32_t dt);
+bool uiIsSwipeV(int dx, int dy, uint32_t dt);
+static uint8_t *uiRimTarget(uint8_t *pages);
 float uiRimAngle(int16_t x, int16_t y);
 void uiDrawRimBar();
 void uiChrome();
@@ -821,6 +825,10 @@ void uiArc(int cx, int cy, int r, int a0, int a1, int w, uint16_t col) {
 #define TILE_PET 2
 #define RIM_R0 186     // a drag starting outside this radius pages, not swipes
 #define RIM_STEP 20    // degrees of arc per page
+#define RIM_BAND_SLACK 24  // a rim drag survives this far inside RIM_R0
+#define SWIPE_MIN 60       // px along the dominant axis
+#define SWIPE_DOM10 14     // the dominant axis must be 1.4x the other (x10)
+#define SWIPE_MAX_MS 1200  // slower than this is a drag, not a swipe
 #define RIM_BAR_R 222  // where the arc scrollbar is drawn
 // 2 to 5 o'clock. Angles are clockwise from 12, so this is the right flank --
 // the top is the title's and the bottom is the tile dots'.
@@ -1023,6 +1031,7 @@ bool rimActive = false;
 bool rimMoved = false;
 float rimA0 = 0;
 int rimSteps = 0;
+int16_t rimPage0 = -1;   // the page when the drag began, to undo a cancelled scroll
 
 // A factory reset has emptied NVS and we are waiting to restart into a new game.
 // Nothing may write the in-RAM creature back over it in the meantime.
@@ -1330,7 +1339,13 @@ void updateBrightness(uint32_t now) {
   if (pet.evolving() || pet.ceremony || pet.eating() || pet.showHeart()) {
     lastInteract = now;
   }
-  uint32_t idle = now - lastInteract;
+  // `now` is taken at the top of loop(), and a tap handled later in the same
+  // pass sets lastInteract a few ms AFTER it. The plain difference then wrapped
+  // to ~49 days, dimStage jumped to 2 and the panel dropped to brightness 8 --
+  // near black -- right after a tap, which is every turn of a fight. Found on
+  // TamaPoke through its diagnostics log (BRIGHT -> 8 then -> 180 straight
+  // away); the bug came with the engine. A touch "in the future" is a touch now.
+  uint32_t idle = (int32_t)(now - lastInteract) > 0 ? now - lastInteract : 0;
   dimStage = (idle > 300000) ? 2 : (idle > 90000) ? 1 : 0;
   const uint8_t base = brightBase(gBrightLevel, usbPresent());
   uint8_t target = pet.sleeping ? 25 : base;
@@ -1739,6 +1754,7 @@ void handleTouch() {
     rimA0 = uiRimAngle(x, y);
     rimSteps = 0;
     rimMoved = false;
+    { uint8_t n; uint8_t *pg = uiRimTarget(&n); rimPage0 = pg ? *pg : -1; }
     swallowGesture = (dimStage > 0) || screenOff || transferMode();  // waking or mid-transfer: no action
     if (screenOff) pet.setScreenOff(false);        // waking the screen wakes it
     screenOff = false;
@@ -1746,6 +1762,22 @@ void handleTouch() {
   } else if (pressed) {  // sigue apoyado
     tXl = x;
     tYl = y;
+    // A drag that starts on the rim and then heads INWARD is a swipe that
+    // happened to begin near the edge -- which on a 1.75" round panel is where
+    // a thumb starts almost every swipe. Treating it as a scroll is what made
+    // the tile axis "hard to swipe" on every paged screen: the finger crossed
+    // the rim's arc on its way across, paged instead, and the swipe was thrown
+    // away. Leaving the band cancels the scroll and puts the page back.
+    if (rimActive && !swallowGesture && !uiOnRimBand(x, y)) {
+      uint8_t n; uint8_t *pg = uiRimTarget(&n);
+      if (pg && rimPage0 >= 0 && *pg != (uint8_t)rimPage0) {
+        *pg = (uint8_t)rimPage0;
+        if (uiCurrentScreen() == SCR_GALLERY) galleryDirty = true;
+      }
+      rimActive = false;
+      rimMoved = false;
+      rimSteps = 0;
+    }
     if (rimActive && !swallowGesture) {
       float d = uiRimAngle(x, y) - rimA0;
       while (d > 180.0f) d -= 360.0f;
@@ -1778,8 +1810,11 @@ void handleTouch() {
     uint32_t dt = millis() - tStart;
     if (rimMoved) { rimActive = false; wasPressed = pressed; return; }   // it was a scroll
     if (!holdFired && !swallowGesture) {
-      if (abs(dx) > 80 && abs(dy) < 70 && dt < 800) onSwipe(dx > 0 ? 1 : -1);
-      else if (abs(dy) > 80 && abs(dx) < 70 && dt < 800) onSwipeV(dy > 0 ? 1 : -1);
+      // The DOMINANT axis decides, not two hard limits. A thumb on a round
+      // panel swipes in an arc: "more than 80 across AND less than 70 down,
+      // inside 0.8 s" threw away most real swipes as nothing at all.
+      if (uiIsSwipeH(dx, dy, dt)) onSwipe(dx > 0 ? 1 : -1);
+      else if (uiIsSwipeV(dx, dy, dt)) onSwipeV(dy > 0 ? 1 : -1);
       else if (dt < 1500 && abs(dx) < 40 && abs(dy) < 40) onTap(tX0, tY0);
     }
     rimActive = false;
@@ -2975,6 +3010,23 @@ void onRim(int dir) {
 bool uiOnRim(int16_t x, int16_t y) {
   int dx = x - CX, dy = y - CY;
   return dx * dx + dy * dy >= RIM_R0 * RIM_R0;
+}
+
+// Still on the rim while dragging: a little inside where a rim drag may START,
+// so a finger following the arc does not drop out of it by wobbling.
+bool uiOnRimBand(int16_t x, int16_t y) {
+  int dx = x - CX, dy = y - CY;
+  int r = RIM_R0 - RIM_BAND_SLACK;
+  return dx * dx + dy * dy >= r * r;
+}
+
+// One answer each, so the gesture test asks the firmware rather than
+// restating the thresholds.
+bool uiIsSwipeH(int dx, int dy, uint32_t dt) {
+  return abs(dx) >= SWIPE_MIN && abs(dx) * 10 >= abs(dy) * SWIPE_DOM10 && dt < SWIPE_MAX_MS;
+}
+bool uiIsSwipeV(int dx, int dy, uint32_t dt) {
+  return abs(dy) >= SWIPE_MIN && abs(dy) * 10 >= abs(dx) * SWIPE_DOM10 && dt < SWIPE_MAX_MS;
 }
 
 float uiRimAngle(int16_t x, int16_t y) {

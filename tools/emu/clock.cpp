@@ -15,7 +15,7 @@ void emuSetTimeScale(uint32_t s) { g_timeScale = s ? s : 1; }
 uint32_t emuTimeScale() { return g_timeScale; }
 
 // The sketch times gestures off this same clock -- a tap needs dt < 1500 and a
-// swipe dt < 800 -- so scaling it wholesale shrinks the window you have to
+// swipe dt < 1200 -- so scaling it wholesale shrinks the window you have to
 // click in to 1500/scale real ms. At --fast 60 that is 25 ms, i.e. touch is
 // unusable. So the scale is suspended for as long as a gesture is in flight:
 // game time runs fast while you are not touching the panel, and real-time the
