@@ -8492,8 +8492,16 @@ static void drawCareArc(int i, const char *label, uint8_t val) {
   float mid = ((float)(a0 + a1) / 2.0f - 90.0f) * 0.01745329f;
   int lx = CX + (int)(cosf(mid) * CARE_LBL_R);
   int ly = CY + (int)(sinf(mid) * CARE_LBL_R);
-  gfx->setTextColor(val < CARE_LOW ? UI_BAR_BAD : inkColor());
   gfx->setTextSize(2);
+  // A halo first: the labels sit on the village backdrop now, and the same
+  // dark ink that read fine on a flat sky vanished against Oto's rock.
+  gfx->setTextColor(gNight ? C565(0x0c, 0x12, 0x24) : UI_WHITE);
+  static const int8_t HALO[4][2] = { { -2, 0 }, { 2, 0 }, { 0, -2 }, { 0, 2 } };
+  for (auto &o : HALO) {
+    gfx->setCursor(lx - (int)strlen(label) * 6 + o[0], ly - 8 + o[1]);
+    gfx->print(label);
+  }
+  gfx->setTextColor(val < CARE_LOW ? UI_BAR_BAD : inkColor());
   gfx->setCursor(lx - (int)strlen(label) * 6, ly - 8);
   gfx->print(label);
 }
