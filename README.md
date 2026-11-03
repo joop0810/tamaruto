@@ -1,6 +1,6 @@
 # TamaNaruto
 
-![Firmware](https://img.shields.io/badge/firmware-v1.0.0-E8503A) ![Board](https://img.shields.io/badge/board-ESP32--S3%20round%20AMOLED-2a64c8) ![Code](https://img.shields.io/badge/code-MIT-blue)
+![Firmware](https://img.shields.io/badge/firmware-v1.0.1-E8503A) ![Board](https://img.shields.io/badge/board-ESP32--S3%20round%20AMOLED-2a64c8) ![Code](https://img.shields.io/badge/code-MIT-blue)
 
 Ein **Ninja-Tamagotchi** für das **Waveshare ESP32-S3-Touch-AMOLED-1.75**: rundes 466×466-AMOLED, Touch, Akku, Lautsprecher.
 Du ziehst einen Ninja aus Konoha, Suna, Kiri oder Oto groß, gehst auf **Missionen**, wirbst besiegte Ninja an und stellst dich der **Chunin-Prüfung**.
@@ -103,12 +103,12 @@ python3 tools/make_thumbs.py            # Bingo-Buch-Miniaturen
 python3 tools/pack_bundle.py            # web/sprites-<dorf>.pak für den Installer
 ```
 
-Die Blätter sind frei angeordnet. `tools/sprites/segment.py` schneidet sie in Einzelbilder, `tools/sprites/picks.json` legt fest, welches Bild Stand, Laufen, Angriff, Treffer, Liegen und Jubel ist. `--sheet` schreibt eine Übersicht nach `tools/sprites/check.png`.
+Die Blätter sind frei angeordnet. `tools/sprites/segment.py` schneidet sie in Einzelbilder, `tools/sprites/picks.json` legt fest, welches Bild Stand, Laufen, Angriff, Treffer, Liegen und Jubel ist. `--sheet` schreibt eine Übersicht nach `tools/sprites/check.png`. Steht in einem Bild eine zweite Figur, die mindestens ein Viertel so groß ist wie die Hauptfigur, bricht der Bau ab und nennt das Bild. Eine Figur, die wirklich aus zweien besteht, bekommt in `picks.json` `"together": true`.
 
 ## So spielst du
 
 - **Unten**: Füttern (Ramen/Dango/Onigiri) · Licht/Schlafen · Baden · Training (Boxsack → Stärke, Reaktion → Tempo, Ball → Abwehr, Gedächtnisspiel → Freude)
-- **Wischen**: horizontal durch `SENSEI · TEAM · [NINJA] · MISSIONEN · CHUNIN-PRÜFUNG · BINGO-BUCH`, hoch = Statuskarte, runter = zurück, am Rand ziehen = blättern
+- **Wischen**: horizontal durch `SENSEI · TEAM · [NINJA] · MISSIONEN · CHUNIN-PRÜFUNG · BINGO-BUCH`, hoch = Statuskarte, runter = zurück, am Rand entlang ziehen = blättern. Ein Wisch zählt ab 60 px in die Hauptrichtung (mindestens 1,4-mal so weit wie quer dazu, unter 1,2 s); einer, der am Rand beginnt und zur Mitte läuft, ist ein Wisch und kein Blättern
 - **Name antippen** = Menü (Beutel, Einstellungen, Verabschieden); **Ninja antippen** = streicheln; **3 s halten** = freilassen
 - **Nachts** (0–6 Uhr, Bildschirm aus) schläft dein Ninja von selbst. Dafür muss die Uhrzeit in den Einstellungen gestellt sein.
 - **PWR kurz** = Bildschirm an/aus, **lang (4 s)** = ausschalten (die Uhr läuft weiter)

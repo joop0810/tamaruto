@@ -48,6 +48,7 @@ import sys
 
 import numpy as np
 from PIL import Image, ImageDraw
+from scipy import ndimage
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -123,8 +124,32 @@ def guess(rows):
     return dict(idle=idle, walk=walk, attack=atk, hurt=hurt, down=down, happy=idle[0])
 
 
+# Two figures in one frame is the defect players saw as "the sprites double".
+# The sheets put poses so close together that segmentation sometimes joins two
+# of them into one blob, and nothing noticed: the frame drew, just twice. So
+# every frame is counted, and a second figure at least this big (relative to
+# the main one) stops the build. A sheet whose character really is two figures
+# (Kiba and Akamaru) says so in picks.json with "together": true.
+SECOND_FIGURE = 0.25
+
+
+def figures(f):
+    """Pixel counts of the separate figures in a frame, largest first."""
+    al = ndimage.binary_dilation(f[..., 3] > 0, iterations=1)
+    lab, n = ndimage.label(al, structure=np.ones((3, 3)))
+    if n < 2:
+        return [int(al.sum())]
+    return sorted((int(v) for v in ndimage.sum(f[..., 3] > 0, lab, range(1, n + 1))), reverse=True)
+
+
+def doubled(f):
+    s = figures(f)
+    return len(s) > 1 and s[1] >= SECOND_FIGURE * s[0]
+
+
 def poses(key, picks, cache):
     p = dict(picks.get(key, {}))
+    together = p.pop('together', False)
     sheet_key = p.pop('sheet', key)
     if sheet_key not in cache:
         cache[sheet_key] = Sheet(sheet_key)
@@ -136,8 +161,19 @@ def poses(key, picks, cache):
     if 'walk' in p and p['walk'] is None:
         g['walk'] = g['idle']
     lst = lambda v: v if isinstance(v, list) else [v]
-    take = lambda refs: [sh.blob(r) for r in lst(refs)[:MAXF]]
-    return {k: take(g[k]) for k in ('idle', 'walk', 'attack', 'hurt', 'down', 'happy')}
+    out, bad = {}, []
+    for k in ('idle', 'walk', 'attack', 'hurt', 'down', 'happy'):
+        refs = lst(g[k])[:MAXF]
+        out[k] = [sh.blob(r) for r in refs]
+        if not together:
+            bad += [f'{k} {r}' for r, f in zip(refs, out[k]) if doubled(f)]
+    if bad:
+        raise DoubledFrame(f'{key}: two figures in one frame: ' + ', '.join(bad))
+    return out
+
+
+class DoubledFrame(Exception):
+    pass
 
 
 # ---------------------------------------------------------------------------
@@ -287,10 +323,13 @@ def write_noart(noart):
 def main():
     os.makedirs(OUT, exist_ok=True)
     picks = json.load(open(PICKS))
-    cache, noart, tiles = {}, [], []
+    cache, noart, tiles, doubles = {}, [], [], []
     for num, ver, key, disp, *_ in D.ROSTER:
         try:
             P = poses(key, picks, cache)
+        except DoubledFrame as e:
+            doubles.append(f'  {num:3d} {disp:15s} {e}')
+            continue
         except FileNotFoundError as e:
             noart.append(num)
             print(f'  {num:3d} {disp:15s} -- no sheet ({e})')
@@ -311,6 +350,9 @@ def main():
                 t.alpha_composite(Image.fromarray(a), (i * (W + 2), 12))
             ImageDraw.Draw(t).text((2, 0), f'{num} {disp}', fill=(255, 255, 0, 255))
             tiles.append(t)
+    if doubles:
+        raise SystemExit('frames with two figures in them -- fix tools/sprites/picks.json:\n'
+                         + '\n'.join(doubles))
     write_noart(noart)
     if tiles:
         cw = max(t.width for t in tiles)

@@ -54,6 +54,16 @@ Battle sprites are drawn at x2, not x3: a Ninja Council fighter is ~55 px tall.
 
 A ninja with no sprite (`noart.h`) never hatches and never turns up on a mission.
 
+**Two figures in one frame stops the sprite build.** The sheets put poses so
+close together that segmentation sometimes joined two of them into one blob,
+and v1.0.0 shipped Ino, Choji, Konohamaru, Kankuro, the Kiri ninja, Oto-Kette
+and Orochimaru each drawing themselves twice in some pose -- reported from a
+board as "the sprites double". `pack_sprites.py` now counts the figures in
+every frame (`doubled()`) and refuses a second one at a quarter of the main
+one's size; fix it in `picks.json` with `row.col/k` or another frame. A
+character that really is two figures may say `"together": true`; none needs
+it today (Akamaru touches Kiba, so they count as one).
+
 ## Screenshots — and why they went a dozen releases stale
 
 `docs/screens/*.png` is what the README shows, and it is generated, not curated:

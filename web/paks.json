@@ -3,26 +3,26 @@
   "regions": {
     "konoha": {
       "index": 0,
-      "bytes": 4104537,
-      "crc32": "59f132f4",
+      "bytes": 3870353,
+      "crc32": "758c03db",
       "sprites": 33
     },
     "suna": {
       "index": 1,
-      "bytes": 1047555,
-      "crc32": "75ad1186",
+      "bytes": 920671,
+      "crc32": "e5a37899",
       "sprites": 9
     },
     "kiri": {
       "index": 2,
-      "bytes": 659130,
-      "crc32": "f7ca8db0",
+      "bytes": 578042,
+      "crc32": "0c874b43",
       "sprites": 7
     },
     "oto": {
       "index": 3,
-      "bytes": 3875789,
-      "crc32": "1cebd341",
+      "bytes": 3578661,
+      "crc32": "41156850",
       "sprites": 21
     }
   }
