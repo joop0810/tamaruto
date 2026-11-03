@@ -171,6 +171,7 @@ static void writePPM(const char *path) {
   printf("wrote %s\n", path);
 }
 
+void rtcSetEpoch(uint32_t e);   // host_impl.cpp
 static int shotMode(const char *screen, const char *out, int lvl, int iv, int dex) {
   setup();
   for (int i = 0; i < 4; i++) loop();          // let the sketch settle
@@ -375,7 +376,7 @@ int main(int argc, char **argv) {
   const char *save = "tamanaruto.nvs";
   const char *shot = nullptr, *shotOut = "shot.ppm";
   const char *wav = nullptr, *demo = nullptr;
-  int shotLvl = 0, shotIv = -1, shotDex = 1;
+  int shotLvl = 0, shotIv = -1, shotDex = 1, shotHour = -1;
   for (int i = 1; i < argc; i++) {
     if (!strcmp(argv[i], "--scale") && i + 1 < argc) scale = atoi(argv[++i]);
     else if (!strcmp(argv[i], "--fast") && i + 1 < argc) emuSetTimeScale(atoi(argv[++i]));
@@ -387,6 +388,9 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[i], "--lvl") && i + 1 < argc) shotLvl = atoi(argv[++i]);
     else if (!strcmp(argv[i], "--iv") && i + 1 < argc) shotIv = atoi(argv[++i]);
     else if (!strcmp(argv[i], "--dex") && i + 1 < argc) shotDex = atoi(argv[++i]);
+    // the time of day the scene is drawn at (the village backdrops have a day and
+    // a night palette, and the default clock starts at midnight)
+    else if (!strcmp(argv[i], "--hour") && i + 1 < argc) shotHour = atoi(argv[++i]);
     else if (!strcmp(argv[i], "--sprites") && i + 1 < argc) emuSetSpriteDir(argv[++i]);
     else if (!strcmp(argv[i], "--wipe")) { remove(save); }
   }
@@ -396,6 +400,7 @@ int main(int argc, char **argv) {
   gEmuDebug = true;
   // Audio preview: no SDL, no board -- just a file you can listen to.
   if (wav) return wavMain(wav, demo);
+  if (shotHour >= 0) rtcSetEpoch(1767225600u + (uint32_t)shotHour * 3600);   // 2026-01-01, the clock_test epoch
   if (shot) return shotMode(shot, shotOut, shotLvl, shotIv, shotDex);   // headless: no SDL at all
   g_crashFile = std::string(save) + ".crash";
   crashRestore();     // a simulated panic left its breadcrumb here

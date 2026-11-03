@@ -40,7 +40,7 @@
 
 // Version del firmware. Subir este numero en cada release (y manifest.json para
 // el instalador web). Se muestra en la pantalla de ajustes y por serie al arrancar.
-#define FW_VERSION "1.0.1"
+#define FW_VERSION "1.1.0"
 
 Arduino_DataBus *bus = new Arduino_ESP32QSPI(
   LCD_CS, LCD_SCLK, LCD_SDIO0, LCD_SDIO1, LCD_SDIO2, LCD_SDIO3);
@@ -2714,15 +2714,41 @@ int sceneHour() {
   return e ? (int)((e / 3600) % 24) : 13;
 }
 
-// suelo de cada bioma de dia (de noche se mezcla hacia el azul nocturno)
-static const uint16_t BIOME_SOIL[6] = {
-  C565(0x7e, 0xc0, 0x7f),  // 0 pradera
-  C565(0xdc, 0xca, 0x94),  // 1 playa (arena)
-  C565(0x4f, 0x8a, 0x55),  // 2 bosque
-  C565(0x8a, 0x55, 0x44),  // 3 volcan
-  C565(0xa8, 0x90, 0x6a),  // 4 montana
-  C565(0xe6, 0xee, 0xf5),  // 5 nieve
-};
+// The village a creature belongs to, as an index into VILLAGES (backs.h). The
+// generator emits one scene per village in REGIONS order, so a region IS a
+// village index -- checked at compile time rather than trusted.
+static_assert(VIL_COUNT == REGION_COUNT && VIL_ARENA == REGION_ALL,
+              "backs.h needs one scene per village plus the arena: rerun tools/gen_backs.py");
+uint8_t villageOfDex(int16_t d) {
+  uint8_t r = regionOfDex(d);
+  return r < REGION_ALL ? r : 0;
+}
+
+// Where the main screen stands: the ninja's own village. A scroll that has not
+// opened yet stands in the village it was picked for.
+uint8_t sceneVillage() {
+  if (pet.isEgg()) return pet.region < REGION_ALL ? pet.region : 0;
+  return villageOfDex(pet.speciesId);
+}
+
+// Paints rows r0..r1-1 of a village layer at x2 with its top at panel row y0.
+// Runs of one index become one fillRect, and VIL_CLEAR runs are skipped so the
+// sky drawn underneath shows through.
+static void drawVillageRows(const uint8_t *img, const uint16_t *pal, int r0, int r1, int y0) {
+  const int SC = 2;
+  const int x0 = CX - VIL_W;           // VIL_W * SC / 2
+  for (int r = r0; r < r1; r++) {
+    const uint8_t *row = img + (uint32_t)r * VIL_W;
+    int c = 0;
+    while (c < VIL_W) {
+      uint8_t v = row[c];
+      int run = 1;
+      while (c + run < VIL_W && row[c + run] == v) run++;
+      if (v != VIL_CLEAR) gfx->fillRect(x0 + c * SC, y0 + (r - r0) * SC, run * SC, SC, pal[v]);
+      c += run;
+    }
+  }
+}
 
 void drawClouds(uint32_t now, uint16_t col) {
   for (int k = 0; k < 2; k++) {
@@ -2734,7 +2760,7 @@ void drawClouds(uint32_t now, uint16_t col) {
   }
 }
 
-void drawScene(uint8_t biome, uint32_t now, bool night) {
+void drawScene(uint8_t village, uint32_t now, bool night) {
   int h = sceneHour();
   uint16_t top, bot;
   if (night)            { top = C565(0x0c, 0x12, 0x24); bot = C565(0x1e, 0x26, 0x46); }
@@ -2758,52 +2784,12 @@ void drawScene(uint8_t biome, uint32_t now, bool night) {
     gfx->fillCircle(233, HORIZON - 6, 34, C565(0xff, 0xf1, 0xc8));  // sol poniente
   }
 
-  // mar de la playa: una franja de agua sobre la arena
-  uint16_t soil = BIOME_SOIL[biome < 6 ? biome : 0];
-  if (night) soil = lerp565(soil, C565(0x16, 0x1c, 0x30), 9, 16);
-  if (biome == 1) {
-    uint16_t sea = night ? C565(0x1c, 0x34, 0x52) : C565(0x4f, 0x96, 0xc4);
-    gfx->fillRect(0, HORIZON - 26, 466, 26, sea);
-    for (int i = 0; i < 3; i++) {
-      int wy = HORIZON - 22 + i * 7;
-      uint16_t fc = night ? C565(0x3a, 0x58, 0x78) : C565(0xbf, 0xe6, 0xf5);
-      gfx->fillRect(60 + ((now / 60 + i * 30) % 60), wy, 26, 2, fc);
-      gfx->fillRect(300 - ((now / 60 + i * 20) % 60), wy, 26, 2, fc);
-    }
-  }
-
-  // suelo
-  gfx->fillRect(0, HORIZON, 466, 466 - HORIZON, soil);
-  uint16_t hill = lerp565(soil, night ? C565(0x0c, 0x12, 0x24) : C565(0xff, 0xff, 0xff), 3, 16);
-  gfx->fillRoundRect(-60, HORIZON - 14, 586, 60, 30, hill);
-
-  // detalles del bioma
-  uint16_t dk = lerp565(soil, C565(0x10, 0x18, 0x20), night ? 11 : 7, 16);
-  if (biome == 2) {  // bosque: coniferas en silueta
-    for (int tx : { 60, 150, 360, 416 }) {
-      gfx->fillTriangle(tx, HORIZON - 46, tx - 16, HORIZON, tx + 16, HORIZON, dk);
-      gfx->fillTriangle(tx, HORIZON - 60, tx - 12, HORIZON - 28, tx + 12, HORIZON - 28, dk);
-    }
-  } else if (biome == 3) {  // volcan: rocas y brasas
-    gfx->fillTriangle(70, HORIZON, 40, HORIZON + 30, 100, HORIZON + 30, dk);
-    gfx->fillTriangle(400, HORIZON + 4, 372, HORIZON + 30, 430, HORIZON + 30, dk);
-    if (!night)
-      for (int e = 0; e < 4; e++)
-        gfx->fillRect(120 + e * 70, HORIZON + 8 + (e % 2) * 6, 4, 4, C565(0xff, 0x9b, 0x3a));
-  } else if (biome == 4) {  // montana: cumbres al fondo
-    gfx->fillTriangle(140, HORIZON - 50, 60, HORIZON, 220, HORIZON, dk);
-    gfx->fillTriangle(330, HORIZON - 38, 250, HORIZON, 410, HORIZON, dk);
-  } else if (biome == 5 && !night) {  // nieve: copos cayendo
-    for (int f = 0; f < 10; f++) {
-      int fx = (f * 53 + now / 40) % 466;
-      int fy = (f * 90 + now / 18) % HORIZON;
-      gfx->fillRect(fx, fy, 3, 3, UI_WHITE);
-    }
-  } else if (biome == 0) {  // pradera: matas de hierba
-    for (int gx : { 80, 175, 300, 395 })
-      for (int b = -1; b <= 1; b++)
-        gfx->fillRect(gx + b * 5, HORIZON + 6, 2, 8 + (b == 0 ? 4 : 0), dk);
-  }
+  // The village: its skyline over the sky above, its street below. Dawn and
+  // dusk keep the day palette -- only the sky changes colour then.
+  const VillageScene &v = VILLAGES[village < VIL_COUNT ? village : 0];
+  const uint16_t *pal = night ? v.palNight : v.palDay;
+  drawVillageRows(v.sky, pal, 0, VIL_SKY_H, HORIZON - VIL_SKY_H * 2);
+  drawVillageRows(v.ground, pal, 0, VIL_GROUND_H, HORIZON);
 }
 
 // first boot: pick the village's starting Genin (Konoha: NARUTO / SASUKE / SAKURA)
@@ -3121,7 +3107,7 @@ void exploreStepRegion(int8_t step) {
 void renderExplore() {
   int h = sceneHour();
   gNight = pet.sleeping || h < 6 || h >= 20;
-  drawScene(pet.isEgg() ? 0 : DEX_TBL[pet.speciesId].biome, millis(), gNight);
+  drawScene(sceneVillage(), millis(), gNight);
 
   gfx->fillRoundRect(78, 28, 310, 54, 14, UI_BG_DAY);
   gfx->drawRoundRect(78, 28, 310, 54, 14, UI_INK);
@@ -3327,7 +3313,7 @@ void render() {
   gNight = pet.sleeping || h < 6 || h >= 20;
   // drawScene cubre los 466x466 completos: sin fillScreen(NEGRO) previo para
   // que un flush DMA solapado nunca capture negro a medias (anti-parpadeo)
-  drawScene(pet.isEgg() ? 0 : DEX_TBL[pet.speciesId].biome, millis(), gNight);
+  drawScene(sceneVillage(), millis(), gNight);
 
   if (pet.ceremony) {
     const DexEntry &d = DEX_TBL[pet.speciesId];
@@ -3686,9 +3672,8 @@ void drawGameScene() {
     gfx->fillRect(0, y, 466, 8, lerp565(top, bot, y, hor));
   if (night)
     for (auto &st : STARS) gfx->fillRect(st[0], st[1], 4, 4, UI_WHITE);
-  uint8_t bio = pet.isEgg() ? 0 : DEX_TBL[pet.speciesId].biome;
-  uint16_t soil = BIOME_SOIL[bio < 6 ? bio : 0];
-  if (night) soil = lerp565(soil, C565(0x16, 0x1c, 0x30), 9, 16);
+  const VillageScene &v = VILLAGES[sceneVillage()];
+  uint16_t soil = night ? v.soilNight : v.soilDay;
   gfx->fillRect(0, hor, 466, 466 - hor, soil);
 }
 
@@ -4429,32 +4414,27 @@ void renderMovePick() {
 // rather than a write per pixel: this is flat pixel art with long horizontal
 // runs, and 240x112 at 2x would otherwise be 26,880 fillRect calls a frame.
 // The round bezel crops the overhang physically, so nothing is clipped here.
-static void drawBack(const BackScene &b, int y0) {
-  const int SC = 2;
-  int x0 = CX - (b.w * SC) / 2;
-  for (int r = 0; r < b.h; r++) {
-    const uint8_t *row = b.idx + (uint32_t)r * b.w;
-    int c = 0;
-    while (c < b.w) {
-      uint8_t v = row[c];
-      int run = 1;
-      while (c + run < b.w && row[c + run] == v) run++;
-      uint16_t col = b.pal[v];
-      gfx->fillRect(x0 + c * SC, y0 + r * SC, run * SC, SC, col);
-      c += run;
-    }
-  }
-}
-
-// Which scene: the FOE's biome, since a battle happens where it lives, and the
-// same day/night split the main screen already uses.
+// Which scene: the FOE's village, since a fight happens where it lives -- and
+// the exam arena for the Chunin exam. Sky first (the main screen's day/night
+// colours, so the two screens agree; no sun -- the HP box sits there), then the lower part of the skyline, then
+// the top of the street: 112 rows at x2, panel rows 30..253.
+#define BTL_SKY_ROW0 40            // skyline rows above this are sky anyway
 static void drawBattleBack() {
   int16_t dex = btlFoe.dex;
   if (dex < 1 || dex > DEX_COUNT) { gfx->fillCircle(CX, CY, 231, UI_BG_DAY); return; }
-  uint8_t bi = DEX_TBL[dex].biome;
-  if (bi >= BACK_BIOMES) bi = 0;
+  uint8_t vi = (btlTrainer >= 0 && !btlLink) ? VIL_ARENA : villageOfDex(dex);
   bool night = sceneHour() < 6 || sceneHour() >= 20;
-  drawBack(BACKS[bi][night ? 1 : 0], 30);
+  const VillageScene &v = VILLAGES[vi];
+  const uint16_t *pal = night ? v.palNight : v.palDay;
+  const int y0 = 30;
+  const int skyRows = VIL_SKY_H - BTL_SKY_ROW0;          // 76
+  const int groundRows = 112 - skyRows;                 // 36
+  uint16_t top = night ? C565(0x0c, 0x12, 0x24) : C565(0x8f, 0xc8, 0xea);
+  uint16_t bot = night ? C565(0x1e, 0x26, 0x46) : C565(0xdc, 0xee, 0xe6);
+  for (int y = 0; y < skyRows * 2; y += 8)
+    gfx->fillRect(0, y0 + y, 466, 8, lerp565(top, bot, y, skyRows * 2));
+  drawVillageRows(v.sky, pal, BTL_SKY_ROW0, VIL_SKY_H, y0);
+  drawVillageRows(v.ground, pal, 0, groundRows, y0 + skyRows * 2);
 }
 
 // Streams a side's sprite if it is not already the one loaded. Called whenever

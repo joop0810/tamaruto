@@ -1,131 +1,129 @@
 #!/usr/bin/env python3
-"""Battle backgrounds: tools/backs/*.png -> backs.h
+"""The village backdrops: tools/villages/*.png -> backs.h
 
-    python3 tools/gen_backs.py
+    python3 tools/draw_villages.py && python3 tools/gen_backs.py
 
-Twelve 240x112 scenes, one day and one night per biome, packed 8bpp indexed
-with a per-image RGB565 palette. 8bpp rather than 4bpp because the worst image
-uses 65 colours and quantising a background to 16 would band the gradients;
-315 KB in flash is affordable and it means a battle still looks like somewhere
-even on a board with no SD card, which the streamed creature sprites cannot.
+Per scene (every village in game_data.VERSIONS, then the Chunin-exam arena):
 
-The rows are emitted as-is. The drawing side turns them into runs of identical
-indices at draw time -- this art is flat pixel art with long horizontal runs, so
-that is far cheaper than a fillRect per pixel.
+  sky     233 x 116, index 255 = transparent (the firmware's own sky shows)
+  ground  233 x 117
 
-The scenes themselves are drawn by tools/draw_backs.py, one per biome.
+Both layers are 8bpp indexed against a PAIR of RGB565 palettes, day and night.
+The index image is shared: draw_villages.py draws day and night with the same
+geometry, so every pixel is a (day, night) colour pair, and a lit window is just
+a pair whose night half is warm yellow. That keeps night at the cost of a second
+palette instead of a second bitmap -- about 54 KB a scene, under the twelve
+biome backgrounds this replaces.
+
+The rows are emitted as-is; the drawing side turns them into runs, as before.
 """
 import os
-import struct
-import zlib
+import sys
+
+from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(HERE, 'backs')
+sys.path.insert(0, HERE)
+import draw_villages as V
+
+SRC = V.OUT
 OUT = os.path.join(HERE, '..', 'backs.h')
-
-# biome index in dex.h -> (day file, night file)
-BIOMES = [
-    ('MEADOW',   'meadow'),
-    ('BEACH',    'beach'),
-    ('FOREST',   'forest'),
-    ('VOLCANO',  'volcano'),
-    ('MOUNTAIN', 'mountain'),
-    ('SNOW',     'snow'),
-]
+CLEAR = 255
 
 
-def read_png(path):
-    d = open(path, 'rb').read()
-    pos, idat, w, h, bd, ct = 8, b'', 0, 0, 0, 0
-    while pos < len(d):
-        ln = struct.unpack('>I', d[pos:pos + 4])[0]
-        typ = d[pos + 4:pos + 8]
-        data = d[pos + 8:pos + 8 + ln]
-        if typ == b'IHDR':
-            w, h, bd, ct = struct.unpack('>IIBB', data[:10])
-        elif typ == b'IDAT':
-            idat += data
-        pos += 12 + ln
-    if bd != 8:
-        raise SystemExit('%s: only 8-bit channels supported' % path)
-    ch = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}[ct]
-    raw = zlib.decompress(idat)
-    rows, prev, i = [], bytearray(w * ch), 0
-    for _ in range(h):
-        f = raw[i]; i += 1
-        line = bytearray(raw[i:i + w * ch]); i += w * ch
-        for x in range(len(line)):
-            a = line[x - ch] if x >= ch else 0
-            b = prev[x]
-            c = prev[x - ch] if x >= ch else 0
-            if f == 1:   line[x] = (line[x] + a) & 255
-            elif f == 2: line[x] = (line[x] + b) & 255
-            elif f == 3: line[x] = (line[x] + (a + b) // 2) & 255
-            elif f == 4:
-                p = a + b - c
-                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
-                pr = a if (pa <= pb and pa <= pc) else (b if pb <= pc else c)
-                line[x] = (line[x] + pr) & 255
-        rows.append(bytes(line)); prev = line
-    return w, h, ch, rows
+def rgb565(c):
+    r, g, b = c[:3]
+    return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
 
 
-def to_indexed(w, h, ch, rows):
-    pal, idx = [], []
-    lut = {}
-    for line in rows:
-        for x in range(0, len(line), ch):
-            r, g, b = line[x], line[x + 1], line[x + 2]
-            c = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
-            if c not in lut:
-                if len(pal) >= 256:
-                    raise SystemExit('more than 256 colours')
-                lut[c] = len(pal); pal.append(c)
-            idx.append(lut[c])
-    return pal, idx
+def load(tag):
+    return Image.open(os.path.join(SRC, tag + '.png')).convert('RGBA')
+
+
+def index_pair(day, night, pairs, transparent):
+    """One index image for two same-geometry images; pairs grows as it goes."""
+    if day.size != night.size:
+        raise SystemExit('day and night differ in size')
+    w, h = day.size
+    dp, np_ = day.load(), night.load()
+    idx = bytearray()
+    for y in range(h):
+        for x in range(w):
+            a, b = dp[x, y], np_[x, y]
+            if transparent and (a[3] == 0) != (b[3] == 0):
+                raise SystemExit('day and night disagree on transparency at %d,%d' % (x, y))
+            if transparent and a[3] == 0:
+                idx.append(CLEAR)
+                continue
+            key = (rgb565(a), rgb565(b))
+            if key not in pairs:
+                if len(pairs) >= CLEAR:
+                    raise SystemExit('more than %d colour pairs in one scene' % CLEAR)
+                pairs[key] = len(pairs)
+            idx.append(pairs[key])
+    return idx
+
+
+def soil(ground_day, ground_night):
+    """The street colour at the horizon, for screens that only need a floor."""
+    return rgb565(ground_day.getpixel((V.W // 2, V.GROUND_H - 1))), \
+        rgb565(ground_night.getpixel((V.W // 2, V.GROUND_H - 1)))
 
 
 def main():
-    out = ['// GENERADO por tools/gen_backs.py desde tools/backs/*.png - no editar',
+    names = V.village_names()
+    out = ['// GENERATED by tools/gen_backs.py from tools/villages/*.png. Do not edit.',
            '#pragma once', '#include <stdint.h>', '',
-           '// Battle backgrounds, 8bpp indexed with a per-image RGB565 palette.',
-           '// Indexed by biome (see dex.h) then 0 = day, 1 = night.', '']
-    names = []
+           '// Village backdrops: a transparent skyline over the firmware\'s own sky, and',
+           '// the street below it. 8bpp, one index image per layer against a day and a',
+           '// night RGB565 palette. Index %d is transparent.' % CLEAR, '']
     total = 0
-    for bi, (base, note) in enumerate(BIOMES):
-        for ni, suffix in enumerate(('', ' NIGHT')):
-            path = os.path.join(SRC, base + suffix + '.png')
-            w, h, ch, rows = read_png(path)
-            pal, idx = to_indexed(w, h, ch, rows)
-            nm = 'BACK_%d_%d' % (bi, ni)
-            names.append((nm, w, h, len(pal)))
-            total += len(idx) + len(pal) * 2
-            out.append('// %s  (%s)' % (base + suffix, note))
-            out.append('static const uint16_t %s_PAL[%d] = {' % (nm, len(pal)))
-            out.append('  ' + ', '.join('0x%04X' % c for c in pal))
+    rows = []
+    for i, n in enumerate(names):
+        tag = n.lower()
+        sd, sn = load(tag + '_day_sky'), load(tag + '_night_sky')
+        gd, gn = load(tag + '_day_ground'), load(tag + '_night_ground')
+        pairs = {}
+        sky = index_pair(sd, sn, pairs, True)
+        ground = index_pair(gd, gn, pairs, False)
+        day = [k[0] for k, _ in sorted(pairs.items(), key=lambda kv: kv[1])]
+        night = [k[1] for k, _ in sorted(pairs.items(), key=lambda kv: kv[1])]
+        s0, s1 = soil(gd, gn)
+        nm = 'VIL_%d' % i
+        total += len(sky) + len(ground) + 4 * len(day)
+        out.append('// %s: %d colour pairs' % (n, len(day)))
+        for suffix, pal in (('DAY', day), ('NIGHT', night)):
+            out.append('static const uint16_t %s_%s[%d] = {' % (nm, suffix, len(pal)))
+            for r in range(0, len(pal), 12):
+                out.append('  ' + ', '.join('0x%04X' % c for c in pal[r:r + 12]) + ',')
             out.append('};')
-            out.append('static const uint8_t %s_IDX[%d] = {' % (nm, len(idx)))
-            for r in range(0, len(idx), 40):
-                out.append('  ' + ','.join(str(v) for v in idx[r:r + 40]) + ',')
+        for suffix, data in (('SKY', sky), ('GROUND', ground)):
+            out.append('static const uint8_t %s_%s[%d] = {' % (nm, suffix, len(data)))
+            for r in range(0, len(data), 40):
+                out.append('  ' + ','.join(str(v) for v in data[r:r + 40]) + ',')
             out.append('};')
-            out.append('')
-    out.append('struct BackScene {')
-    out.append('  const uint16_t *pal;')
-    out.append('  const uint8_t *idx;')
-    out.append('  uint16_t w, h, palCount;')
-    out.append('};')
-    out.append('#define BACK_BIOMES %d' % len(BIOMES))
-    out.append('static const BackScene BACKS[BACK_BIOMES][2] = {')
-    for bi in range(len(BIOMES)):
-        row = []
-        for ni in range(2):
-            nm, w, h, pc = names[bi * 2 + ni]
-            row.append('{ %s_PAL, %s_IDX, %d, %d, %d }' % (nm, nm, w, h, pc))
-        out.append('  { %s },' % ', '.join(row))
-    out.append('};')
+        out.append('')
+        rows.append('  { "%s", %s_DAY, %s_NIGHT, %s_SKY, %s_GROUND, %d, 0x%04X, 0x%04X },'
+                    % (n, nm, nm, nm, nm, len(day), s0, s1))
+    out += [
+        'struct VillageScene {',
+        '  const char *name;',
+        '  const uint16_t *palDay, *palNight;',
+        '  const uint8_t *sky, *ground;',
+        '  uint16_t palCount;',
+        '  uint16_t soilDay, soilNight;   // the street at the horizon',
+        '};',
+        '#define VIL_W %d' % V.W,
+        '#define VIL_SKY_H %d' % V.SKY_H,
+        '#define VIL_GROUND_H %d' % V.GROUND_H,
+        '#define VIL_CLEAR %d' % CLEAR,
+        '// one per village in REGIONS order (REGION_ALL excluded), then the arena',
+        '#define VIL_COUNT %d' % len(names),
+        '#define VIL_ARENA %d' % (len(names) - 1),
+        'static const VillageScene VILLAGES[VIL_COUNT] = {',
+    ] + rows + ['};']
     open(OUT, 'w').write('\n'.join(out) + '\n')
-    print('backgrounds: %d, %.1f KB of data -> %s'
-          % (len(names), total / 1024.0, os.path.normpath(OUT)))
+    print('village scenes: %d, %.1f KB of data -> %s' % (len(names), total / 1024.0, os.path.normpath(OUT)))
 
 
 if __name__ == '__main__':

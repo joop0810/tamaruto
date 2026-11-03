@@ -43,7 +43,7 @@ bash tools/emu/build.sh >/dev/null
 # something that no longer existed, and the script still said it had finished.
 failed=""
 for s in $SHOTS; do
-  tools/emu/tamanaruto-emu --shot "$s" --out "$TMP/$s.ppm" >/dev/null 2>&1 || {
+  tools/emu/tamanaruto-emu --hour 13 --shot "$s" --out "$TMP/$s.ppm" >/dev/null 2>&1 || {
     echo "  $s: FAILED (is it still a --shot name in main_sdl.cpp?)"
     failed="$failed $s"
     continue; }

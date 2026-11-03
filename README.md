@@ -1,6 +1,6 @@
 # TamaNaruto
 
-![Firmware](https://img.shields.io/badge/firmware-v1.0.1-E8503A) ![Board](https://img.shields.io/badge/board-ESP32--S3%20round%20AMOLED-2a64c8) ![Code](https://img.shields.io/badge/code-MIT-blue)
+![Firmware](https://img.shields.io/badge/firmware-v1.1.0-E8503A) ![Board](https://img.shields.io/badge/board-ESP32--S3%20round%20AMOLED-2a64c8) ![Code](https://img.shields.io/badge/code-MIT-blue)
 
 Ein **Ninja-Tamagotchi** für das **Waveshare ESP32-S3-Touch-AMOLED-1.75**: rundes 466×466-AMOLED, Touch, Akku, Lautsprecher.
 Du ziehst einen Ninja aus Konoha, Suna, Kiri oder Oto groß, gehst auf **Missionen**, wirbst besiegte Ninja an und stellst dich der **Chunin-Prüfung**.
@@ -44,6 +44,7 @@ Alle Bilder stammen direkt aus dem Emulator (`bash tools/make_screens.sh`) und z
   - **Chakra-Naturen:** Katon > Futon > Raiton > Doton > Suiton > Katon (×2 / ×½), Mokuton schlägt Suiton und Doton, Yin und Yang schlagen einander.
   - **Kampfstil:** Taijutsu schlägt Genjutsu, Genjutsu schlägt Ninjutsu, Ninjutsu schlägt Taijutsu (×1,3 / ×0,8).
 - **Bingo-Buch:** alle Ninja, die du schon aufgezogen oder getroffen hast.
+- **Jedes Dorf hat seine eigene Kulisse:** Konoha mit Hokage-Felsen, Suna mit Kuppelhäusern, Kiri über dem Wasser im Nebel, Oto mit Versteck im dunklen Wald, dazu die Arena der Chunin-Prüfung. Dein Ninja steht in seinem Dorf, ein Kampf findet im Dorf des Gegners statt, mit eigener Nachtversion und leuchtenden Fenstern.
 - **LAN-Kampf** zwischen zwei Geräten per ESP-NOW.
 
 ## Die Dörfer
@@ -142,6 +143,6 @@ Darunter `ranks_test` (feste Ränge, niemand verwandelt sich, ein Genin erreicht
 
 - **Code** (Firmware + Tools): MIT, © 2026 Quique Tortosa und Mitwirkende, Naruto-Umbau © 2026 joop0810.
 - **Naruto, Namen, Sprites**: © Masashi Kishimoto / Shueisha / Bandai (Spiel: *Naruto: Ninja Council*). Nur private, nicht-kommerzielle Nutzung.
-- **Musik, Siegel, Avatare, Kampfhintergründe, UI-Icons**: in diesem Projekt erzeugt (siehe `tools/gen_music.py`, `gen_ladders.py`, `gen_avatars.py`, `draw_backs.py`, `sprites.py`), MIT.
+- **Musik, Siegel, Avatare, Dorf- und Kampfhintergründe, UI-Icons**: in diesem Projekt erzeugt (siehe `tools/gen_music.py`, `gen_ladders.py`, `gen_avatars.py`, `draw_villages.py`, `sprites.py`), MIT.
 
 Inoffizielles Fan-Projekt. Nicht mit Shueisha, Bandai, Studio Pierrot oder TV Tokyo verbunden oder von ihnen unterstützt.

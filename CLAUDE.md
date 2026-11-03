@@ -15,7 +15,8 @@ the sprites belong to Kishimoto / Shueisha / Bandai.
 | `dex.h` | GENERATED: the 33 ninja, villages, ranks, styles, natures, the empty `EVO_TBL` |
 | `moves.h` / `move_names.h` | GENERATED: 74 jutsu and the per-ninja learnsets |
 | `trainers.h` / `badges.h` | GENERATED: the Chunin exams and their (procedurally drawn) seals |
-| `avatars.h` / `music.h` / `backs.h` | GENERATED, all original art/music (see `tools/gen_avatars.py`, `gen_music.py`, `draw_backs.py`) |
+| `avatars.h` / `music.h` | GENERATED, all original art/music (see `tools/gen_avatars.py`, `gen_music.py`) |
+| `backs.h` | GENERATED: the village backdrops (`tools/draw_villages.py` draws them, `gen_backs.py` packs them) |
 | `types.h` | Nature chart + style triangle helpers (`battleEffPct`) |
 | `party.cpp/.h` | The 6-slot party and the 36-slot box |
 | `battle.cpp/.h`, `wild.cpp/.h`, `link*.cpp` | Turn-based battles, missions + recruiting, ESP-NOW LAN battles |
@@ -51,6 +52,15 @@ rules were changed to fit:
   an academy scroll must not stand there with one punch until level 49.
 
 Battle sprites are drawn at x2, not x3: a Ninja Council fighter is ~55 px tall.
+
+**Every village has a backdrop, and the main screen and fights both use it.**
+`tools/draw_villages.py` draws one scene per village in `VERSIONS` plus the
+Chunin-exam ARENA: a transparent skyline (the firmware still paints its own
+sky, sun, moon and clouds behind it) and a street. Day and night share one
+index image with two palettes, so a lit window is a pixel that is window-blue
+by day and yellow by night. `backs.h` is indexed by REGION, which a
+`static_assert` and `village_test` pin; the main screen stands in the ninja's
+village, a fight in the foe's, the Chunin exam in the arena.
 
 A ninja with no sprite (`noart.h`) never hatches and never turns up on a mission.
 
