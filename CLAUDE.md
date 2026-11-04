@@ -56,7 +56,9 @@ Battle sprites are drawn at x2, not x3: a Ninja Council fighter is ~55 px tall.
 **Every village has a backdrop, and the main screen and fights both use it.**
 `tools/draw_villages.py` draws one scene per village in `VERSIONS` plus the
 Chunin-exam ARENA: a transparent skyline (the firmware still paints its own
-sky, sun, moon and clouds behind it) and a street. Day and night share one
+sky, sun, moon and clouds behind it), a street, and a calm BATTLE layer --
+low silhouette, wide floor -- because the foe is drawn high on the panel and
+over the skyline it stood on the rooftops (reported from a board). Day and night share one
 index image with two palettes, so a lit window is a pixel that is window-blue
 by day and yellow by night. `backs.h` is indexed by REGION, which a
 `static_assert` and `village_test` pin; the main screen stands in the ninja's

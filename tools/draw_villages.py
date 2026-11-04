@@ -10,14 +10,18 @@ Each scene is two layers, drawn at x2 on the 466 px panel:
   skyline  233 x 116, TRANSPARENT where the sky shows. The firmware keeps drawing
            its own sky (dawn, day, dusk, night, sun, moon, clouds) behind it.
   street   233 x 117, the ground the ninja stands on, from the horizon down.
+  battle   233 x 112, the CALM version for fights: a low silhouette on the
+           horizon and a wide floor, so the foe -- drawn high on the panel --
+           stands on the ground instead of on the rooftops (reported from a
+           board). Transparent above the silhouette, muted towards the haze.
 
 Day and night are drawn separately here but share ONE index image in backs.h:
 every pixel becomes a (day colour, night colour) pair, so night costs a second
 palette rather than a second bitmap. A lit window is simply a pixel whose day
 colour is the wall's window colour and whose night colour is warm yellow.
 
-The main screen draws both layers whole. A fight draws the lower part of the
-skyline (rows 40..115) over a band of sky, then the top of the street.
+The main screen draws skyline and street. A fight draws only the battle layer,
+over a band of the firmware's sky, at panel rows 30..253.
 
 The village list is NOT restated: it comes from VERSIONS in game_data.py, and
 a village without a scene here stops the build.
@@ -35,6 +39,8 @@ import game_data as D
 
 OUT = os.path.join(HERE, 'villages')
 W, SKY_H, GROUND_H = 233, 116, 117
+BATTLE_H = 112
+BATTLE_HORIZON = 40          # panel y 110: the foe's feet (y 134) land on the floor
 ARENA = 'ARENA'
 
 
@@ -480,12 +486,106 @@ def side_fences(d, P):
         d.line([(2 if side == 0 else W - 50, 10), (50 if side == 0 else W - 2, 10)], fill=P['fence'])
 
 
+# ---------------------------------------------------------------------------
+# the calm fight layer
+
+HAZE_DAY = rgb('#dceee6')
+
+
+def muted(P, key, t=0.35):
+    """A colour pulled towards the haze, so the fighters stand out against it."""
+    c = P[key]
+    h = night_c(HAZE_DAY) if P.night else HAZE_DAY
+    return tuple(int(a + (b - a) * t) for a, b in zip(c, h))
+
+
+def battle_floor(d, P, rnd, floor, floor_d, floor_l, lane=True):
+    hz = BATTLE_HORIZON
+    d.rectangle([0, hz, W, BATTLE_H], fill=floor)
+    if lane:
+        for y in range(hz + 2, BATTLE_H):
+            half = 26 + int((y - hz) * 1.4)
+            d.line([(W // 2 - half, y), (W // 2 + half, y)], fill=floor_l)
+    for _ in range(34):
+        x, y = rnd.randrange(W), rnd.randrange(hz + 4, BATTLE_H)
+        d.line([(x, y), (x + rnd.randrange(2, 4), y)], fill=floor_d)
+
+
+def konoha_battle(d, P, rnd):
+    hz = BATTLE_HORIZON
+    pts = [(0, hz)] + [(x, hz - 8 - int(3 * math.sin(x / 9.0))) for x in range(0, W + 6, 6)] + [(W, hz)]
+    d.polygon(pts, fill=muted(P, 'far', 0.3))
+    # the cliff, far away and small
+    d.polygon([(70, hz - 6), (76, hz - 26), (158, hz - 26), (164, hz - 6)], fill=muted(P, 'rock'))
+    for i in range(4):
+        cx = 84 + i * 22
+        d.ellipse([cx - 8, hz - 30, cx + 8, hz - 16], fill=muted(P, 'rock_l'))
+    for x in (12, 40, 196, 220):
+        d.ellipse([x - 9, hz - 18, x + 9, hz - 2], fill=muted(P, 'tree', 0.3))
+    battle_floor(d, P, rnd, muted(P, 'street', 0.15), muted(P, 'street_d', 0.15), muted(P, 'street_l', 0.15))
+
+
+def suna_battle(d, P, rnd):
+    hz = BATTLE_HORIZON
+    pts = [(0, hz)] + [(x, hz - 10 - int(6 * math.sin(x / 19.0))) for x in range(0, W + 8, 8)] + [(W, hz)]
+    d.polygon(pts, fill=muted(P, 'far', 0.2))
+    for x, w in ((24, 16), (46, 12), (176, 14), (198, 18)):
+        d.rectangle([x, hz - 12, x + w, hz - 2], fill=muted(P, 'wall'))
+        d.pieslice([x, hz - 12 - w // 2, x + w, hz - 12 + w // 2], 180, 360, fill=muted(P, 'roof'))
+    battle_floor(d, P, rnd, muted(P, 'street', 0.1), muted(P, 'street_d', 0.1), muted(P, 'street_l', 0.1))
+    for y in range(hz + 8, BATTLE_H, 9):
+        for x in ((y * 11) % 23, ):
+            for xx in range(x, W, 23):
+                d.arc([xx, y, xx + 10, y + 4], 200, 340, fill=muted(P, 'street_d', 0.1))
+
+
+def kiri_battle(d, P, rnd):
+    hz = BATTLE_HORIZON
+    pts = [(0, hz)] + [(x, hz - 22 + int(12 * abs(math.sin(x / 27.0)))) for x in range(0, W + 10, 10)] + [(W, hz)]
+    d.polygon(pts, fill=muted(P, 'far', 0.3))
+    for y in (hz - 14, hz - 6):
+        for x in range((y * 7) % 20, W, 26):
+            d.line([(x, y), (x + 15, y)], fill=muted(P, 'mist', 0.1))
+    # a wide platform of planks over the water
+    d.rectangle([0, hz, W, BATTLE_H], fill=muted(P, 'water', 0.2))
+    for y in range(hz + 1, BATTLE_H):
+        half = 70 + int((y - hz) * 1.3)
+        d.line([(W // 2 - half, y), (W // 2 + half, y)], fill=muted(P, 'plank', 0.15))
+    for y in range(hz + 4, BATTLE_H, 7):
+        half = 70 + int((y - hz) * 1.3)
+        d.line([(W // 2 - half, y), (W // 2 + half, y)], fill=muted(P, 'plank_d', 0.15))
+
+
+def oto_battle(d, P, rnd):
+    hz = BATTLE_HORIZON
+    for x in range(0, W, 9):
+        top = hz - 18 - rnd.randrange(8)
+        d.polygon([(x - 5, hz), (x, top), (x + 5, hz)], fill=muted(P, 'pine', 0.25))
+    d.ellipse([92, hz - 22, 142, hz + 10], fill=muted(P, 'rock', 0.3))
+    battle_floor(d, P, rnd, muted(P, 'street', 0.15), muted(P, 'street_d', 0.15), muted(P, 'street_l', 0.15))
+
+
+def arena_battle(d, P, rnd):
+    hz = BATTLE_HORIZON
+    for tier in range(3):
+        y = hz - 22 + tier * 6
+        d.rectangle([0, y, W, y + 5], fill=muted(P, 'stand' if tier % 2 else 'stand_d', 0.3))
+        for x in range(1 + tier % 2, W, 4):
+            c = rgb(CROWD[(x * 7 + tier * 3) % len(CROWD)])
+            c = night_c(c) if P.night else c
+            h = night_c(HAZE_DAY) if P.night else HAZE_DAY
+            d.point((x, y + 2), fill=tuple(int(a + (b - a) * 0.35) for a, b in zip(c, h)))
+    d.rectangle([0, hz - 4, W, hz], fill=muted(P, 'wall'))
+    battle_floor(d, P, rnd, muted(P, 'street', 0.1), muted(P, 'street_d', 0.1), muted(P, 'street_l', 0.1), lane=False)
+    d.ellipse([16, hz + 12, W - 16, BATTLE_H + 60], outline=muted(P, 'ring', 0.1))
+
+
 SCENES = {
-    'KONOHA': (KONOHA, konoha_sky, konoha_ground),
-    'SUNA':   (SUNA, suna_sky, suna_ground),
-    'KIRI':   (KIRI, kiri_sky, kiri_ground),
-    'OTO':    (OTO, oto_sky, oto_ground),
-    ARENA:    (ARENA_S, arena_sky, arena_ground),
+    'KONOHA': (KONOHA, konoha_sky, konoha_ground, konoha_battle),
+    'SUNA':   (SUNA, suna_sky, suna_ground, suna_battle),
+    'KIRI':   (KIRI, kiri_sky, kiri_ground, kiri_battle),
+    'OTO':    (OTO, oto_sky, oto_ground, oto_battle),
+    ARENA:    (ARENA_S, arena_sky, arena_ground, arena_battle),
 }
 
 
@@ -499,13 +599,21 @@ def village_names():
 
 
 def draw(name, night):
-    base, sky_fn, ground_fn = SCENES[name]
+    base, sky_fn, ground_fn, _ = SCENES[name]
     P = Pal(base, night)
     sky = Image.new('RGBA', (W, SKY_H), (0, 0, 0, 0))
     sky_fn(ImageDraw.Draw(sky), P, random.Random(name + 'sky'))
     ground = Image.new('RGB', (W, GROUND_H), P['street'])
     ground_fn(ImageDraw.Draw(ground), P, random.Random(name + 'ground'))
     return sky, ground
+
+
+def draw_battle(name, night):
+    base, _, _, fn = SCENES[name]
+    P = Pal(base, night)
+    im = Image.new('RGBA', (W, BATTLE_H), (0, 0, 0, 0))
+    fn(ImageDraw.Draw(im), P, random.Random(name + 'battle'))
+    return im
 
 
 def preview(path):
@@ -543,6 +651,7 @@ def main():
             tag = n.lower() + ('_night' if night else '_day')
             sky.save(os.path.join(OUT, tag + '_sky.png'))
             ground.save(os.path.join(OUT, tag + '_ground.png'))
+            draw_battle(n, night).save(os.path.join(OUT, tag + '_battle.png'))
     if '--preview' in sys.argv:
         preview(os.path.join(OUT, 'preview.png'))
     print('drew %d scenes (%s) into %s' % (len(names), ', '.join(names), OUT))

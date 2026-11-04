@@ -178,6 +178,8 @@ enum StrId : uint8_t {
   S_TRAIN_TOTAL_FMT,  // "Training: %u" -- trAtk + trDef + trSpe
   S_ATTR,             // card label: Vaccine / Data / Virus / Free
   S_STAGE_0, S_STAGE_1, S_STAGE_2, S_STAGE_3, S_STAGE_4, S_STAGE_5,
+  S_LEARN_HINT,       // under the new move: tap a known one to replace it
+  S_LEARN_NEW,        // learn prompt heading, short enough for the top of the circle
   STR_COUNT
 };
 

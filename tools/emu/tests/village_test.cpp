@@ -82,6 +82,21 @@ int main(){
     ck(differ(d, n, 120, 466) > 50000, "night uses its own palette");
   }
 
+  // The fight layer is the CALM one: sky at the top, and solid floor from the
+  // foe's feet down. The foe is drawn high on the panel; over the skyline it
+  // stood on the rooftops (reported from a board). Its feet are at panel row
+  // 56 + 78 = 134, i.e. layer row (134 - 30) / 2 = 52.
+  {
+    bool skyClear = true, floorSolid = true;
+    for (int v = 0; v < VIL_COUNT; v++) {
+      const uint8_t *b = VILLAGES[v].battle;
+      for (int r = 0; r < 4; r++) for (int x = 0; x < VIL_W; x++) if (b[r * VIL_W + x] != VIL_CLEAR) skyClear = false;
+      for (int r = 52; r < VIL_BATTLE_H; r++) for (int x = 0; x < VIL_W; x++) if (b[r * VIL_W + x] == VIL_CLEAR) floorSolid = false;
+    }
+    ck(skyClear, "the fight layer leaves the top to the firmware's sky");
+    ck(floorSolid, "and is solid floor from the foe's feet down, in every village");
+  }
+
   printf("%s\n", bad ? "FAILURES" : "every village has its own backdrop");
   return bad ? 1 : 0;
 }

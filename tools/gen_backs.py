@@ -8,12 +8,14 @@ Per scene (every village in game_data.VERSIONS, then the Chunin-exam arena):
   sky     233 x 116, index 255 = transparent (the firmware's own sky shows)
   ground  233 x 117
 
-Both layers are 8bpp indexed against a PAIR of RGB565 palettes, day and night.
+  battle  233 x 112, the calm version for fights, transparent above its horizon
+
+All three layers are 8bpp indexed against a PAIR of RGB565 palettes, day and night.
 The index image is shared: draw_villages.py draws day and night with the same
 geometry, so every pixel is a (day, night) colour pair, and a lit window is just
 a pair whose night half is warm yellow. That keeps night at the cost of a second
-palette instead of a second bitmap -- about 54 KB a scene, under the twelve
-biome backgrounds this replaces.
+palette instead of a second bitmap -- about 80 KB a scene with all three
+layers, ~400 KB in flash for the lot.
 
 The rows are emitted as-is; the drawing side turns them into runs, as before.
 """
@@ -83,39 +85,43 @@ def main():
         tag = n.lower()
         sd, sn = load(tag + '_day_sky'), load(tag + '_night_sky')
         gd, gn = load(tag + '_day_ground'), load(tag + '_night_ground')
+        bd, bn = load(tag + '_day_battle'), load(tag + '_night_battle')
         pairs = {}
         sky = index_pair(sd, sn, pairs, True)
         ground = index_pair(gd, gn, pairs, False)
+        battle = index_pair(bd, bn, pairs, True)
         day = [k[0] for k, _ in sorted(pairs.items(), key=lambda kv: kv[1])]
         night = [k[1] for k, _ in sorted(pairs.items(), key=lambda kv: kv[1])]
         s0, s1 = soil(gd, gn)
         nm = 'VIL_%d' % i
-        total += len(sky) + len(ground) + 4 * len(day)
+        total += len(sky) + len(ground) + len(battle) + 4 * len(day)
         out.append('// %s: %d colour pairs' % (n, len(day)))
         for suffix, pal in (('DAY', day), ('NIGHT', night)):
             out.append('static const uint16_t %s_%s[%d] = {' % (nm, suffix, len(pal)))
             for r in range(0, len(pal), 12):
                 out.append('  ' + ', '.join('0x%04X' % c for c in pal[r:r + 12]) + ',')
             out.append('};')
-        for suffix, data in (('SKY', sky), ('GROUND', ground)):
+        for suffix, data in (('SKY', sky), ('GROUND', ground), ('BATTLE', battle)):
             out.append('static const uint8_t %s_%s[%d] = {' % (nm, suffix, len(data)))
             for r in range(0, len(data), 40):
                 out.append('  ' + ','.join(str(v) for v in data[r:r + 40]) + ',')
             out.append('};')
         out.append('')
-        rows.append('  { "%s", %s_DAY, %s_NIGHT, %s_SKY, %s_GROUND, %d, 0x%04X, 0x%04X },'
-                    % (n, nm, nm, nm, nm, len(day), s0, s1))
+        rows.append('  { "%s", %s_DAY, %s_NIGHT, %s_SKY, %s_GROUND, %s_BATTLE, %d, 0x%04X, 0x%04X },'
+                    % (n, nm, nm, nm, nm, nm, len(day), s0, s1))
     out += [
         'struct VillageScene {',
         '  const char *name;',
         '  const uint16_t *palDay, *palNight;',
         '  const uint8_t *sky, *ground;',
+        '  const uint8_t *battle;         // the calm fight layer, VIL_BATTLE_H rows',
         '  uint16_t palCount;',
         '  uint16_t soilDay, soilNight;   // the street at the horizon',
         '};',
         '#define VIL_W %d' % V.W,
         '#define VIL_SKY_H %d' % V.SKY_H,
         '#define VIL_GROUND_H %d' % V.GROUND_H,
+        '#define VIL_BATTLE_H %d' % V.BATTLE_H,
         '#define VIL_CLEAR %d' % CLEAR,
         '// one per village in REGIONS order (REGION_ALL excluded), then the arena',
         '#define VIL_COUNT %d' % len(names),

@@ -69,6 +69,8 @@ static const char *const STRINGS[LANG_COUNT][STR_COUNT] = {
     "RECIBIENDO SPRITES", "%u archivos", "el juego vuelve al terminar", "Entreno: %u",
     "ESTILO", "-", "ACADEMIA", "GENIN",
     "CHUNIN", "JONIN", "KAGE",
+    "Toca una para cambiarla",
+    "Nueva tecnica!",
   },
   // ---------------- EN ----------------
   {
@@ -130,6 +132,8 @@ static const char *const STRINGS[LANG_COUNT][STR_COUNT] = {
     "RECEIVING SPRITES", "%u files", "the game resumes when done", "Training: %u",
     "STYLE", "-", "ACADEMY", "GENIN",
     "CHUNIN", "JONIN", "KAGE",
+    "Tap one to replace it",
+    "New jutsu!",
   },
   // ---------------- FR ----------------
   {
@@ -191,6 +195,8 @@ static const char *const STRINGS[LANG_COUNT][STR_COUNT] = {
     "RECEPTION DES SPRITES", "%u fichiers", "le jeu reprend a la fin", "Entrainement: %u",
     "STYLE", "-", "ACADEMIE", "GENIN",
     "CHUNIN", "JONIN", "KAGE",
+    "Touche-en une a remplacer",
+    "Nouveau jutsu!",
   },
   // ---------------- DE ----------------
   {
@@ -252,6 +258,8 @@ static const char *const STRINGS[LANG_COUNT][STR_COUNT] = {
     "EMPFANGE SPRITES", "%u Dateien", "danach geht es weiter", "Training: %u",
     "STIL", "-", "AKADEMIE", "GENIN",
     "CHUNIN", "JONIN", "KAGE",
+    "Tippe eine zum Ersetzen",
+    "Neues Jutsu!",
   },
   // ---------------- IT ----------------
   {
@@ -313,6 +321,8 @@ static const char *const STRINGS[LANG_COUNT][STR_COUNT] = {
     "RICEZIONE SPRITE", "%u file", "il gioco riprende alla fine", "Allenamento: %u",
     "STILE", "-", "ACCADEMIA", "GENIN",
     "CHUNIN", "JONIN", "KAGE",
+    "Toccane una da sostituire",
+    "Nuovo jutsu!",
   },
   // ---------------- PT ----------------
   {
@@ -374,6 +384,8 @@ static const char *const STRINGS[LANG_COUNT][STR_COUNT] = {
     "A RECEBER SPRITES", "%u ficheiros", "o jogo volta no fim", "Treino: %u",
     "ESTILO", "-", "ACADEMIA", "GENIN",
     "CHUNIN", "JONIN", "KAGE",
+    "Toque uma para trocar",
+    "Novo jutsu!",
   },
 };
 

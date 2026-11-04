@@ -40,7 +40,7 @@
 
 // Version del firmware. Subir este numero en cada release (y manifest.json para
 // el instalador web). Se muestra en la pantalla de ajustes y por serie al arrancar.
-#define FW_VERSION "1.1.0"
+#define FW_VERSION "1.2.0"
 
 Arduino_DataBus *bus = new Arduino_ESP32QSPI(
   LCD_CS, LCD_SCLK, LCD_SDIO0, LCD_SDIO1, LCD_SDIO2, LCD_SDIO3);
@@ -256,8 +256,15 @@ uint8_t movePickPage = 0;
 // level-up learn prompt: modal, and deliberately without a timeout -- it
 // decides what the creature is for the rest of its life, and once banked into
 // the party, forever.
-#define LEARN_ROW_Y(i) (104 + (i) * 56)
-#define LEARN_SKIP_Y 334
+// The new move gets a card of its own at the top (LEARN_NEW_*), so the four it
+// would replace move down: 50 px rows on a 52 px pitch, and the skip button at
+// the UI_TAP_MIN floor. Tests ask uiLearnRowCenterY()/uiLearnSkipCenterY().
+#define LEARN_ROW_Y(i) (126 + (i) * 52)
+#define LEARN_ROW_H 50
+#define LEARN_SKIP_Y 340
+#define LEARN_NEW_X 92     // narrower: at y 58 the round panel is only 308 px wide
+#define LEARN_NEW_W 282
+#define LEARN_NEW_Y 56
 
 // ---------- battle ----------
 // The move menu is a 2x2 grid rather than four stacked rows: the round panel
@@ -2460,7 +2467,7 @@ void onTap(int16_t x, int16_t y) {
   if (pet.hasLearnOffer()) {
     for (int i = 0; i < MOVE_SLOTS; i++) {
       int ry = LEARN_ROW_Y(i);
-      if (x < 70 || x > 396 || y < ry || y > ry + 50) continue;
+      if (x < 70 || x > 396 || y < ry || y > ry + LEARN_ROW_H) continue;
       sfxPlay(SFX_TAP);
       pet.acceptLearn(i);
       return;
@@ -4287,13 +4294,21 @@ int drawTypeChip(int x, int y, uint8_t type) {
   return w;
 }
 
+void drawMoveRowAt(int x, int w, int y, uint8_t mv, bool highlight, int16_t dex, uint16_t frame);
 void drawMoveRow(int y, uint8_t mv, bool highlight, int16_t dex) {
-  gfx->fillRoundRect(70, y, 326, 50, 12, highlight ? UI_BAR_WARN : UI_BG_DAY);
-  gfx->drawRoundRect(70, y, 326, 50, 12, UI_INK);
+  drawMoveRowAt(70, 326, y, mv, highlight, dex, UI_INK);
+}
+
+// The same row anywhere and any width: the learn prompt shows the NEW move in
+// exactly the format of the four it would replace, so they can be compared.
+void drawMoveRowAt(int x, int w, int y, uint8_t mv, bool highlight, int16_t dex, uint16_t frame) {
+  gfx->fillRoundRect(x, y, w, 50, 12, highlight ? UI_BAR_WARN : UI_BG_DAY);
+  gfx->drawRoundRect(x, y, w, 50, 12, frame);
+  if (frame != UI_INK) gfx->drawRoundRect(x + 1, y + 1, w - 2, 48, 11, frame);
   if (!mv) {
     gfx->setTextColor(UI_INK_SOFT);
     gfx->setTextSize(2);
-    gfx->setCursor(CX - (int)strlen(T(S_MOVE_EMPTY)) * 6, y + 17);
+    gfx->setCursor(x + w / 2 - (int)strlen(T(S_MOVE_EMPTY)) * 6, y + 17);
     gfx->print(T(S_MOVE_EMPTY));
     return;
   }
@@ -4301,7 +4316,7 @@ void drawMoveRow(int y, uint8_t mv, bool highlight, int16_t dex) {
   const char *name = moveName(mv);
   gfx->setTextColor(UI_INK);
   gfx->setTextSize(2);
-  gfx->setCursor(82, y + 8);
+  gfx->setCursor(x + 12, y + 8);
   gfx->print(name);
   // There is no per-type palette (DexEntry.accent is per Digimon), and inventing
   // one by hand would duplicate what gen_dex.py generates. Colouring same-type
@@ -4311,11 +4326,11 @@ void drawMoveRow(int y, uint8_t mv, bool highlight, int16_t dex) {
   // belongs -- STAB is a damage bonus, so saying it next to the damage reads
   // straight, and it leaves the type free to be its own colour.
   bool stab = hasStab(dex, m.type) && m.cat != MC_STATUS;
-  int cw = drawTypeChip(82, y + 29, m.type);
+  int cw = drawTypeChip(x + 12, y + 29, m.type);
   if (stab) {
     gfx->setTextColor(DEX_TBL[dex].accent);
     gfx->setTextSize(1);
-    gfx->setCursor(82 + cw + 6, y + 33);
+    gfx->setCursor(x + 12 + cw + 6, y + 33);
     gfx->print("STAB");
   }
   char pw[16];
@@ -4323,7 +4338,7 @@ void drawMoveRow(int y, uint8_t mv, bool highlight, int16_t dex) {
   else snprintf(pw, sizeof(pw), T(S_MOVE_PWR), m.power);
   gfx->setTextColor(stab ? DEX_TBL[dex].accent : UI_INK);
   gfx->setTextSize(1);
-  gfx->setCursor(384 - (int)strlen(pw) * 6, y + 33);
+  gfx->setCursor(x + w - 12 - (int)strlen(pw) * 6, y + 33);
   gfx->print(pw);
 }
 
@@ -4415,26 +4430,23 @@ void renderMovePick() {
 // runs, and 240x112 at 2x would otherwise be 26,880 fillRect calls a frame.
 // The round bezel crops the overhang physically, so nothing is clipped here.
 // Which scene: the FOE's village, since a fight happens where it lives -- and
-// the exam arena for the Chunin exam. Sky first (the main screen's day/night
-// colours, so the two screens agree; no sun -- the HP box sits there), then the lower part of the skyline, then
-// the top of the street: 112 rows at x2, panel rows 30..253.
-#define BTL_SKY_ROW0 40            // skyline rows above this are sky anyway
+// the exam arena for the Chunin exam. The calm battle layer, not the main
+// screen's skyline: the foe is drawn high on the panel, and over the skyline
+// it stood on the rooftops (reported from a board). Sky first, in the main
+// screen's day/night colours so the two agree, then the layer, which is
+// transparent above its low horizon: 112 rows at x2, panel rows 30..253.
 static void drawBattleBack() {
   int16_t dex = btlFoe.dex;
   if (dex < 1 || dex > DEX_COUNT) { gfx->fillCircle(CX, CY, 231, UI_BG_DAY); return; }
   uint8_t vi = (btlTrainer >= 0 && !btlLink) ? VIL_ARENA : villageOfDex(dex);
   bool night = sceneHour() < 6 || sceneHour() >= 20;
   const VillageScene &v = VILLAGES[vi];
-  const uint16_t *pal = night ? v.palNight : v.palDay;
   const int y0 = 30;
-  const int skyRows = VIL_SKY_H - BTL_SKY_ROW0;          // 76
-  const int groundRows = 112 - skyRows;                 // 36
   uint16_t top = night ? C565(0x0c, 0x12, 0x24) : C565(0x8f, 0xc8, 0xea);
   uint16_t bot = night ? C565(0x1e, 0x26, 0x46) : C565(0xdc, 0xee, 0xe6);
-  for (int y = 0; y < skyRows * 2; y += 8)
-    gfx->fillRect(0, y0 + y, 466, 8, lerp565(top, bot, y, skyRows * 2));
-  drawVillageRows(v.sky, pal, BTL_SKY_ROW0, VIL_SKY_H, y0);
-  drawVillageRows(v.ground, pal, 0, groundRows, y0 + skyRows * 2);
+  for (int y = 0; y < 96; y += 8) gfx->fillRect(0, y0 + y, 466, 8, lerp565(top, bot, y, 96));
+  gfx->fillRect(0, y0 + 96, 466, VIL_BATTLE_H * 2 - 96, bot);
+  drawVillageRows(v.battle, night ? v.palNight : v.palDay, 0, VIL_BATTLE_H, y0);
 }
 
 // Streams a side's sprite if it is not already the one loaded. Called whenever
@@ -6781,19 +6793,22 @@ void renderLearn() {
   gfx->fillScreen(RGB565_BLACK);
   gfx->fillCircle(CX, CY, 231, UI_BG_DAY);
   uint8_t mv = pet.learnOffer();
-  char head[40];
-  const char *nm = pet.nick[0] ? pet.nick : DEX_TBL[pet.speciesId].name;
-  snprintf(head, sizeof(head), T(S_LEARN_Q), nm);
+  // Reported from a board: the new move was a bare coloured word above four
+  // full move cards, so the screen read as "four moves and a forget button" --
+  // nothing said what was on offer or what to do. The new move is a card of
+  // its own now, in the same format as the four, and a line says what to tap.
+  // The heading is short on purpose: at y 34 the circle is ~240 px wide, and
+  // "NARUTO wants to learn" in a readable size does not fit there.
   gfx->setTextColor(UI_INK);
-  gfx->setTextSize(1);
-  gfx->setCursor(CX - (int)strlen(head) * 3, 48);
-  gfx->print(head);
-  gfx->setTextColor(DEX_TBL[pet.speciesId].accent);
-  const char *move = moveName(mv);
-  int moveSize = strlen(move) <= 17 ? 3 : 2;
-  gfx->setTextSize(moveSize);
-  gfx->setCursor(CX - (int)strlen(move) * moveSize * 3, moveSize == 3 ? 66 : 72);
-  gfx->print(move);
+  gfx->setTextSize(2);
+  gfx->setCursor(CX - (int)strlen(T(S_LEARN_NEW)) * 6, 34);
+  gfx->print(T(S_LEARN_NEW));
+  drawMoveRowAt(LEARN_NEW_X, LEARN_NEW_W, LEARN_NEW_Y, mv, false, pet.speciesId,
+                DEX_TBL[pet.speciesId].accent);
+  gfx->setTextColor(UI_INK_SOFT);
+  gfx->setTextSize(2);
+  gfx->setCursor(CX - (int)strlen(T(S_LEARN_HINT)) * 6, 111);
+  gfx->print(T(S_LEARN_HINT));
 
   for (int i = 0; i < MOVE_SLOTS; i++) drawMoveRow(LEARN_ROW_Y(i), pet.moves[i], false, pet.speciesId);
 
@@ -6966,6 +6981,8 @@ static void menuRowLabel(int i, char *out, size_t n) {
 // proves the transcription; see CLAUDE.md on rpickPageCount() and
 // uiButtonHeights(), which exist for exactly this.
 int uiMenuRowCenterY(int i) { return MENU_ROW_Y(i) + MENU_ROW_H / 2; }
+int uiLearnRowCenterY(int i) { return LEARN_ROW_Y(i) + LEARN_ROW_H / 2; }
+int uiLearnSkipCenterY() { return LEARN_SKIP_Y + 22; }
 
 void drawMenu() {
   // dim the game behind the panel so the overlay reads as modal, and so it is

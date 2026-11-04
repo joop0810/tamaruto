@@ -39,6 +39,7 @@ extern bool trainOpen, sackOpen, gameOpen, menuOpen, cardOpen, movePickOpen, spd
 extern bool memoOpen;
 extern bool bagOpen, playerOpen;
 int uiMenuRowCenterY(int i);
+int uiLearnRowCenterY(int i); int uiLearnSkipCenterY();
 // The training menu's geometry, read from the firmware rather than restated here.
 int uiTrainRowTop(int i);
 int uiTrainRowH();
@@ -314,7 +315,7 @@ int main(int argc, char **argv) {
   printf("PASS: crossing gates with a full moveset queues an offer\n");
 
   uint8_t offered = pet.learnOffer(), was2 = pet.moves[2];
-  click(233, 104 + 2 * 56 + 10);          // LEARN_ROW_Y(2)
+  click(233, uiLearnRowCenterY(2));      // asked, not re-typed: the layout moved once already
   if (pet.moves[2] != offered) {
     printf("FAIL: accepting did not put %s in slot 2 (got %s)\n",
            MOVE_TBL[offered].name, pet.moves[2] ? MOVE_TBL[pet.moves[2]].name : "-");
@@ -327,7 +328,7 @@ int main(int argc, char **argv) {
     uint8_t before[MOVE_SLOTS];
     for (int i = 0; i < MOVE_SLOTS; i++) before[i] = pet.moves[i];
     uint8_t skipped = pet.learnOffer();
-    click(233, 334 + 20);                 // LEARN_SKIP_Y
+    click(233, uiLearnSkipCenterY());
     bool same = true;
     for (int i = 0; i < MOVE_SLOTS; i++) if (pet.moves[i] != before[i]) same = false;
     if (!same || pet.knowsMove(skipped)) {
